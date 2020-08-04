@@ -1,13 +1,12 @@
 using CleanArchitecture.Application;
 using CleanArchitecture.Application.Common.Interfaces;
+using CleanArchitecture.Infrastructure;
 using CleanArchitecture.Infrastructure.Persistence;
-using CleanArchitecture.WebUI.Common;
+using CleanArchitecture.WebUI.Filters;
 using CleanArchitecture.WebUI.Services;
-using FluentValidation.AspNetCore;
 using Microsoft.AspNetCore.Builder;
 using Microsoft.AspNetCore.Hosting;
 using Microsoft.AspNetCore.Mvc;
-using Microsoft.AspNetCore.SpaServices.AngularCli;
 using Microsoft.Extensions.Configuration;
 using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.Hosting;
@@ -19,21 +18,17 @@ namespace CleanArchitecture.WebUI
 {
     public class Startup
     {
-        public Startup(IConfiguration configuration, IWebHostEnvironment environment)
+        public Startup(IConfiguration configuration)
         {
             Configuration = configuration;
-            Environment = environment;
         }
 
         public IConfiguration Configuration { get; }
 
-        public IWebHostEnvironment Environment { get; }
-
-        // This method gets called by the runtime. Use this method to add services to the container.
         public void ConfigureServices(IServiceCollection services)
         {
             services.AddApplication();
-            services.AddInfrastructure(Configuration, Environment);
+            services.AddInfrastructure(Configuration);
 
             services.AddScoped<ICurrentUserService, CurrentUserService>();
 
@@ -42,9 +37,8 @@ namespace CleanArchitecture.WebUI
             services.AddHealthChecks()
                 .AddDbContextCheck<ApplicationDbContext>();
 
-            services.AddControllersWithViews()
-                .AddFluentValidation(fv => fv.RegisterValidatorsFromAssemblyContaining<IApplicationDbContext>())
-                .AddNewtonsoftJson();
+            services.AddControllersWithViews(options =>
+                options.Filters.Add(new ApiExceptionFilter()));
 
             services.AddRazorPages();
 
@@ -52,12 +46,6 @@ namespace CleanArchitecture.WebUI
             services.Configure<ApiBehaviorOptions>(options =>
             {
                 options.SuppressModelStateInvalidFilter = true;
-            });
-
-            // In production, the Angular files will be served from this directory
-            services.AddSpaStaticFiles(configuration =>
-            {
-                configuration.RootPath = "ClientApp/dist";
             });
 
             services.AddOpenApiDocument(configure =>
@@ -75,7 +63,6 @@ namespace CleanArchitecture.WebUI
             });
         }
 
-        // This method gets called by the runtime. Use this method to configure the HTTP request pipeline.
         public void Configure(IApplicationBuilder app, IWebHostEnvironment env)
         {
             if (env.IsDevelopment())
@@ -90,14 +77,9 @@ namespace CleanArchitecture.WebUI
                 app.UseHsts();
             }
 
-            app.UseCustomExceptionHandler();
             app.UseHealthChecks("/health");
             app.UseHttpsRedirection();
             app.UseStaticFiles();
-            if (!env.IsDevelopment())
-            {
-                app.UseSpaStaticFiles();
-            }
 
             app.UseSwaggerUi3(settings =>
             {
@@ -116,19 +98,6 @@ namespace CleanArchitecture.WebUI
                     name: "default",
                     pattern: "{controller}/{action=Index}/{id?}");
                 endpoints.MapRazorPages();
-            });
-
-            app.UseSpa(spa =>
-            {
-                // To learn more about options for serving an Angular SPA from ASP.NET Core,
-                // see https://go.microsoft.com/fwlink/?linkid=864501
-
-                spa.Options.SourcePath = "ClientApp";
-
-                if (env.IsDevelopment())
-                {
-                    spa.UseAngularCliServer(npmScript: "start");
-                }
             });
         }
     }
